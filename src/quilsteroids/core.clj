@@ -12,7 +12,10 @@
   {:angle 0})
 
 (defn update-state [state]
-  (assoc state :angle (+ (:angle state) (/ Math/PI 20))))
+  (let [turn-rate (/ Math/PI 20)]
+    (assoc state :angle (+ (:angle state)
+                           (* (if (:left-turn? state) -1 0) turn-rate)
+                           (* (if (:right-turn? state) 1 0) turn-rate)))))
 
 (defn vec2d+ [a b]
   (mapv + a b))
@@ -41,7 +44,7 @@
       (q/line left-base tail)
       (q/line right-base tail))))
 
-(defn draw-state [{:keys [angle color thrusting?] :as state}]
+(defn draw-state [{:keys [angle color thrusting? controls] :as state}]
   (q/background 0)
   ;; Move origin point to the center of the sketch.
   (q/with-translation [(/ (q/width) 2)
