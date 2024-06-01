@@ -7,12 +7,42 @@
 
 ;; TODOs (refactoring throughout, tests overdue)
 ;; - torus geometry
+;;   - drawing
 ;; - lasers
 ;; - asteroids
 ;; - collisions
 
 (def play-area
   [640 480])
+
+(defn within
+  "Function which clips the value passed to at least zero and at most the given width"
+  [width]
+  (fn [x]
+    (let [whole-widths (Math/floor (/ x width))]
+      (- x (* width whole-widths)))
+    ))
+
+;; TODO: into unit tests
+(comment
+  ((within 10) 6)
+  ;; => 6
+  ((within 10) 16)
+  ;; => 6.0
+  ((within 10) -6)
+  ;; => 4.0
+  ((within 10) -16))
+;; => 4.0
+
+(defn on-torus
+  "Function which clips the point passed to its argument to the given width and height"
+  [[width height]]
+  (let [clip-width (within width)
+        clip-height (within height)]
+    (fn [[x y]]
+      [(clip-width x) (clip-height y)])))
+
+(def on-game-torus (on-torus play-area))
 
 (defn setup []
   (q/frame-rate 30)
@@ -55,7 +85,7 @@
                          (:angle ship))))))
 
 (defn move-ship [ship]
-  (update ship :position #(v+ % (:velocity ship))))
+  (update ship :position #(on-game-torus (v+ % (:velocity ship)))))
 
 (defn move-objects [state]
   (update state :ship move-ship))
