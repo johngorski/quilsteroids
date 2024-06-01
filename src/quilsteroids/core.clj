@@ -2,15 +2,16 @@
   (:require
    [clojure.set :as sets]
    [quil.core :as q]
-   [quil.middleware :as m]))
+   [quil.middleware :as m])
+  (:import (clojure.lang PersistentQueue)))
 
 (defn setup []
   ;; Set frame rate to 30 frames per second.
   (q/frame-rate 30)
-  ;; Set color mode to HSB (HSV) instead of default RGB.
-  (q/color-mode :hsb)
   ;; setup function returns initial state. It contains
-  {:angle 0 :controls #{}})
+  {:angle 0
+   :controls #{}
+   :events PersistentQueue/EMPTY})
 
 (defn update-state [{:keys [controls] :as state}]
   (let [turn-rate (/ Math/PI 20)]
@@ -52,32 +53,23 @@
                        (/ (q/height) 2)]
     (draw-ship {:x 0 :y 0 :theta angle :thrusting? (:thrusters controls)})))
 
+(def held-controls
+  {:up :thrusters
+   :left :left-turn
+   :right :right-turn})
+
+(def triggers
+  {:control :fire
+   :down :warp})
+
 (defn key-pressed [old-state event]
-  (cond
-    (= :up (:key event))
-    (update old-state :controls conj :thrusters)
-
-    (= :right (:key event))
-    (update old-state :controls conj :right-turn)
-
-    (= :left (:key event))
-    (update old-state :controls conj :left-turn)
-
-    :default
+  (if-let [held-control (held-controls (:key event))]
+    (update old-state :controls conj held-control)
     old-state))
 
 (defn key-released [old-state event]
-  (cond
-    (= :up (:key event))
-    (update old-state :controls disj :thrusters)
-
-    (= :right (:key event))
-    (update old-state :controls disj :right-turn)
-
-    (= :left (:key event))
-    (update old-state :controls disj :left-turn)
-
-    :default
+  (if-let [released-control (held-controls (:key event))]
+    (update old-state :controls disj released-control)
     old-state))
 
 (comment
