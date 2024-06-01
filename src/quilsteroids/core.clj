@@ -5,6 +5,12 @@
    [quil.middleware :as m])
   (:import (clojure.lang PersistentQueue)))
 
+;; TODOs (refactoring throughout, tests overdue)
+;; - torus geometry
+;; - lasers
+;; - asteroids
+;; - collisions
+
 (def play-area
   [640 480])
 
