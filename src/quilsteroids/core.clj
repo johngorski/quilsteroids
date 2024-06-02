@@ -6,8 +6,6 @@
   (:import (clojure.lang PersistentQueue)))
 
 ;; TODOs (refactoring throughout, tests overdue)
-;; - torus geometry
-;;   - drawing
 ;; - lasers
 ;; - asteroids
 ;; - collisions
@@ -101,26 +99,63 @@
 (defn rectangular [r theta]
   [(* r (Math/cos theta)) (* r (Math/sin theta))])
 
+(def ship-radius 10)
+
+(defn ship-torus-positions
+  "Cycle supply vastly outstrips cycle demand. Let's see how this goes if we render the full
+  cross of everything.
+
+  But...naive collision detection is O(n^2), so it's worth keeping n low (i.e. not 9x) since a
+  9x change in position/update/drawing becomes 81x in collision detection.
+
+  Torus positions are important here so that we can track one position for moving the ship around,
+  but then we can check all *torus* positions for collisions and draw at all torus positions as well.
+
+  Some form of this will likely get generalized to all objects on torus geometry."
+  [p]
+  (let [[width height] play-area]
+    (into #{}
+          (comp
+           (map #(v+ p %))
+           (filter (fn [[x y]]
+                     (and
+                      (<= (- ship-radius) x) (< x (+ width ship-radius))
+                      (<= (- ship-radius) y) (< y (+ height ship-radius))))))
+          [[(- width) (- height)] [0 (- height)] [width (- height)]
+           [(- width)    0      ] [0    0      ] [width    0      ]
+           [(- width)    height ] [0    height ] [width    height ]]
+          )))
+
+(comment
+  (ship-torus-positions [10 10])
+  ;; => #{[10 10]}
+  (ship-torus-positions [1 1])
+  ;; => #{[1 1] [641 1] [1 481] [641 481]}
+  (ship-torus-positions (mapv #(* 1/2 %) play-area))
+  ;; => #{[320N 240N]}
+  ())
+
 (defn draw-ship [{:keys [position angle thrusting?]}]
-  (q/with-translation position
-    (let [R 10
-          r 7
-          delta (* 5/6 Math/PI)
-          left-angle (+ angle delta)
-          right-angle (- angle delta)
-          nose (rectangular R angle)
-          left-tip (rectangular R left-angle)
-          left-base (rectangular r left-angle)
-          right-tip (rectangular R right-angle)
-          right-base (rectangular r right-angle)
-          tail (rectangular R (+ angle Math/PI))]
-      (q/stroke 200)
-      (q/line nose left-tip)
-      (q/line nose right-tip)
-      (q/line left-base right-base)
-      (when thrusting?
-        (q/line left-base tail)
-        (q/line right-base tail)))))
+  (q/stroke 200)
+  (doseq [p (ship-torus-positions position)]
+    (q/with-translation p
+      (let [R ship-radius
+            r (* 7/10 R)
+            delta (* 5/6 Math/PI)
+            left-angle (+ angle delta)
+            right-angle (- angle delta)
+            nose (rectangular R angle)
+            left-tip (rectangular R left-angle)
+            left-base (rectangular r left-angle)
+            right-tip (rectangular R right-angle)
+            right-base (rectangular r right-angle)
+            tail (rectangular R (+ angle Math/PI))]
+        (q/line nose left-tip)
+        (q/line nose right-tip)
+        (q/line left-base right-base)
+        (when thrusting?
+          (q/line left-base tail)
+          (q/line right-base tail))))))
 
 (defn draw-state [{:keys [controls ship] :as state}]
   (q/background 0)
