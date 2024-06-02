@@ -9,6 +9,7 @@
 ;; - lasers
 ;; - asteroids
 ;; - collisions
+;; - cap ship speed
 
 (def play-area
   [640 480])
