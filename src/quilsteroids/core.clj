@@ -43,19 +43,37 @@
 
 (def on-game-torus (on-torus play-area))
 
+(defn rectangular [r theta]
+  [(* r (Math/cos theta)) (* r (Math/sin theta))])
+
+(def v+ (partial mapv +))
+(def v- (partial mapv -))
+
+(comment
+  (v- [0 1] [1 2])
+  ;; => [-1 -1]
+  ())
+
+(def laser-speed 10)
+
+(def ship-radius 10)
+
 (defn setup []
   (q/frame-rate 30)
   {:controls #{}
-   :events PersistentQueue/EMPTY
+   :events PersistentQueue/EMPTY ;; (conj :fire)
 
    :ship
    {:angle 0
     :position (mapv #(/ % 2) play-area)
     :velocity [0 0]
-    :ammo 4}
-   })
+    :ammo 3}
 
-(def v+ (partial mapv +))
+   :lasers
+   [{:position (v+ (mapv #(/ % 2) play-area) [ship-radius 0])
+     :velocity (rectangular laser-speed 0)
+     }]
+   })
 
 (defn detect-collisions
   "Enqueue events/transform state based on collisions in current state"
@@ -86,8 +104,14 @@
 (defn move-ship [ship]
   (update ship :position #(on-game-torus (v+ % (:velocity ship)))))
 
+(defn move-laser [laser]
+  (update laser :position #(on-game-torus (v+ % (:velocity laser)))))
+
 (defn move-objects [state]
-  (update state :ship move-ship))
+  (-> state
+      ;; (update :lasers (map move-laser))
+      (update :ship move-ship)
+      ))
 
 (defn update-state [state]
   (-> state
@@ -96,11 +120,6 @@
       actuate-controls
       move-objects
       ))
-
-(defn rectangular [r theta]
-  [(* r (Math/cos theta)) (* r (Math/sin theta))])
-
-(def ship-radius 10)
 
 (defn ship-torus-positions
   "Cycle supply vastly outstrips cycle demand. Let's see how this goes if we render the full
@@ -128,6 +147,8 @@
           )))
 
 (comment
+  (ship-torus-positions [9 9])
+  ;; => #{[9 9] [649 489] [9 489] [649 9]}
   (ship-torus-positions [10 10])
   ;; => #{[10 10]}
   (ship-torus-positions [1 1])
@@ -158,9 +179,21 @@
           (q/line left-base tail)
           (q/line right-base tail))))))
 
-(defn draw-state [{:keys [controls ship] :as state}]
+(defn laser-torus-positions
+ "TODO"
+  [p]
+  #{p})
+
+(defn draw-laser [{:keys [position velocity]}]
+  (q/stroke 255)
+  (doseq [p (laser-torus-positions position)]
+    (q/with-translation p
+      (q/line [0 0] (mapv - velocity)))))
+
+(defn draw-state [{:keys [controls lasers ship] :as state}]
   (q/background 0)
-  (draw-ship (assoc ship :thrusting? (:thrusters controls))))
+  (draw-ship (assoc ship :thrusting? (:thrusters controls)))
+  (doseq [laser lasers] (draw-laser laser)))
 
 (def held-controls
   {:up :thrusters
