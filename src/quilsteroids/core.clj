@@ -58,22 +58,33 @@
 
 (def ship-radius 10)
 
-(defn setup []
-  (q/frame-rate 30)
+(def queue PersistentQueue/EMPTY)
+
+(def initial-state
   {:controls #{}
-   :events PersistentQueue/EMPTY ;; (conj :fire)
+   :events queue ;; (conj queue :shoot)
 
    :ship
    {:angle 0
     :position (mapv #(/ % 2) play-area)
     :velocity [0 0]
-    :ammo 3}
+    :ammo 4}
 
    :lasers
-   [{:position (v+ (mapv #(/ % 2) play-area) [ship-radius 0])
-     :velocity (rectangular laser-speed 0)
-     }]
+   [#_{:position (v+ (mapv #(/ % 2) play-area) [ship-radius 0])
+       :velocity (rectangular laser-speed 0)
+       }]
    })
+
+(defn shoot [{:keys [ship] :as state}]
+  (update state :lasers conj {:position (v+ (:position ship)
+                                            (rectangular ship-radius (:angle ship)))
+                              :velocity (rectangular laser-speed (:angle ship))}))
+
+(defn setup []
+  (q/frame-rate 30)
+  ;; (shoot)
+  initial-state)
 
 (defn detect-collisions
   "Enqueue events/transform state based on collisions in current state"
@@ -81,10 +92,31 @@
   identity ;; TODO
   )
 
+(comment
+  (shoot initial-state)
+  {:controls #{}
+   ;; :events #object[clojure.lang.PersistentQueue 0x38326fb9 "clojure.lang.PersistentQueue@48a66cc8"]
+   :ship {:angle 0
+          :position [320 240]
+          :velocity [0 0]
+          :ammo 4}
+   :lasers [{:position [330.0 240.0]
+             :velocity [10.0 0.0]}]})
+
+(defn effects
+  "functions from state to state"
+  [game-event]
+  (get
+   {:shoot shoot}
+   game-event
+   identity))
+
 (defn process-events
   "Process event queue to update the state"
-  [state]
-  identity ;; TODO
+  [{:keys [events] :as state}]
+  (assoc
+   (reduce #(%2 %1) state (map effects events))
+   :events queue)
   )
 
 (def turn-rate (/ Math/PI 20))
@@ -109,14 +141,14 @@
 
 (defn move-objects [state]
   (-> state
-      ;; (update :lasers (map move-laser))
+      (update :lasers #(map move-laser %))
       (update :ship move-ship)
       ))
 
 (defn update-state [state]
   (-> state
       ;; detect-collisions
-      ;; process-events
+      process-events
       actuate-controls
       move-objects
       ))
@@ -201,13 +233,23 @@
    :right :right-turn})
 
 (def triggers
-  {:control :shoot
+  {:shift :shoot
    :down :warp})
 
-(defn key-pressed [old-state event]
+(defn control-held [old-state event]
   (if-let [held-control (held-controls (:key event))]
     (update old-state :controls conj held-control)
     old-state))
+
+(defn trigger-squeezed [old-state event]
+  (if-let [squeezed-trigger (triggers (:key event))]
+    (update old-state :events conj squeezed-trigger)
+    old-state))
+
+(defn key-pressed [old-state event]
+  (-> old-state
+      (control-held event)
+      (trigger-squeezed event)))
 
 (defn key-released [old-state event]
   (if-let [released-control (held-controls (:key event))]
