@@ -6,13 +6,18 @@
   (:import (clojure.lang PersistentQueue)))
 
 ;; TODOs (refactoring throughout, tests overdue)
-;; - lasers
 ;; - asteroids
 ;; - collisions
 ;; - cap ship speed
 
 (def play-area
   [640 480])
+
+(defn in-play-area? [[x y]]
+  (let [[play-width play-height] play-area]
+    (and
+     (<= 0 x play-width)
+     (<= 0 y play-height))))
 
 (defn within
   "Function which clips the value passed to at least zero and at most the given width"
@@ -55,6 +60,7 @@
   ())
 
 (def laser-speed 10)
+(def laser-length laser-speed)
 
 (def ship-radius 10)
 
@@ -167,6 +173,15 @@
       move-objects
       ))
 
+(def torus-translations
+  (let [[width height] play-area]
+    [[(- width) (- height)] [0 (- height)] [width (- height)]
+     [(- width)    0      ] [0    0      ] [width    0      ]
+     [(- width)    height ] [0    height ] [width    height ]]))
+
+(defn torus-points [p]
+  (map #(v+ p %) torus-translations))
+
 (defn ship-torus-positions
   "Cycle supply vastly outstrips cycle demand. Let's see how this goes if we render the full
   cross of everything.
@@ -187,9 +202,7 @@
                      (and
                       (<= (- ship-radius) x) (< x (+ width ship-radius))
                       (<= (- ship-radius) y) (< y (+ height ship-radius))))))
-          [[(- width) (- height)] [0 (- height)] [width (- height)]
-           [(- width)    0      ] [0    0      ] [width    0      ]
-           [(- width)    height ] [0    height ] [width    height ]]
+          torus-translations
           )))
 
 (comment
@@ -225,14 +238,28 @@
           (q/line left-base tail)
           (q/line right-base tail))))))
 
-(defn laser-torus-positions
- "TODO"
-  [p]
-  #{p})
+(defn laser-ends [laser]
+  (let [{:keys [position velocity]} laser]
+    {:tip position
+     :tail (v- position velocity)}))
 
-(defn draw-laser [{:keys [position velocity]}]
+(defn laser-torus-positions
+  "Positions at which to draw lasers and detect collisions"
+  [{:keys [position velocity] :as laser}]
+  (into #{}
+        (filter (fn [p]
+                  (or (in-play-area? p)
+                      (in-play-area? (v- p velocity)))))
+        (torus-points position)))
+
+(comment
+  (laser-torus-positions {:position [1 2]
+                          :velocity [5 5]})
+  #{[1 2] [641 482]})
+
+(defn draw-laser [{:keys [position velocity] :as laser}]
   (q/stroke 255)
-  (doseq [p (laser-torus-positions position)]
+  (doseq [p (laser-torus-positions laser)]
     (q/with-translation p
       (q/line [0 0] (mapv - velocity)))))
 
