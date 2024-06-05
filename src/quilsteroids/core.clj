@@ -178,9 +178,17 @@
                                 (filter (fn [laser] (< 0 (:countdown laser)))))
                                %)))
 
+(defn move-asteroid [{:keys [velocity angular-velocity] :as asteroid}]
+  (-> asteroid
+      (update :position #(on-game-torus (v+ % velocity)))
+      (update :angle #(+ % angular-velocity))))
+
+(defn move-asteroids [state]
+  (update state :asteroids #(map move-asteroid %)))
 
 (defn move-objects [state]
   (-> state
+      move-asteroids
       move-lasers
       (update :ship move-ship)
       ))
@@ -295,12 +303,12 @@
         angles (range 0 (* 2 Math/PI) arc-angle)
         [inner & outers] angles]
     (q/with-translation position
-      ;; (q/with-rotation [angle])
-      (doseq [[t1 t2] (partition 2 1 outers)]
-        (q/line (rectangular major-radius t1) (rectangular major-radius t2))))
-    (let [inner-p (rectangular minor-radius inner)]
-      (q/line inner-p (rectangular major-radius (first outers)))
-      (q/line inner-p (rectangular major-radius (last outers))))))
+      (q/with-rotation [angle]
+        (doseq [[t1 t2] (partition 2 1 outers)]
+          (q/line (rectangular major-radius t1) (rectangular major-radius t2)))
+        (let [inner-p (rectangular minor-radius inner)]
+          (q/line inner-p (rectangular major-radius (first outers)))
+          (q/line inner-p (rectangular major-radius (last outers))))))))
 
 (defn draw-state [{:keys [asteroids controls lasers ship] :as state}]
   (q/background 0)
