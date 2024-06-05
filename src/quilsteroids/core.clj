@@ -6,7 +6,6 @@
   (:import (clojure.lang PersistentQueue)))
 
 ;; TODOs (refactoring throughout, tests overdue)
-;; - asteroids (as circles)
 ;; - collisions
 ;; - cap ship speed
 ;; - cracks in asteroids--taking forever, probably not worth doing ever, maybe.
@@ -294,6 +293,29 @@
 ;; (range 0 (* 2 Math/PI) (/ (* 2 Math/PI) 9))
 ;; => (0 0.6981317007977318 1.3962634015954636 2.0943951023931953 2.792526803190927 3.490658503988659 4.1887902047863905 4.886921905584122 5.585053606381854)
 
+(defn asteroid-torus-positions [asteroid]
+  (let [[width height] play-area
+        major-radius (* 10 (:mass asteroid))]
+    (into #{}
+          (filter (fn [[x y]]
+                    (and
+                     (<= (- major-radius) x) (< x (+ width major-radius))
+                     (<= (- major-radius) y) (< y (+ height major-radius)))))
+          (torus-points (:position asteroid)))))
+
+(comment
+  (asteroid-torus-positions {:position [0 0] :mass 3})
+  ;; => #{[0 0] [640 0] [640 480] [0 480]}
+  (asteroid-torus-positions {:position [320 0] :mass 3})
+  ;; => #{[320 0] [320 480]}
+  (asteroid-torus-positions {:position [320 2] :mass 3})
+  ;; => #{[320 482] [320 2]}
+  (asteroid-torus-positions {:position [2 240] :mass 3})
+  ;; => #{[642 240] [2 240]}
+  (asteroid-torus-positions {:position [632 240] :mass 3})
+  ;; => #{[-8 240] [632 240]}
+  ())
+
 (defn draw-asteroid [{:keys [position angle mass] :as asteroid}]
   (q/stroke 180)
   (let [segments 9
@@ -302,13 +324,14 @@
         arc-angle (/ (* 2 Math/PI) segments)
         angles (range 0 (* 2 Math/PI) arc-angle)
         [inner & outers] angles]
-    (q/with-translation position
-      (q/with-rotation [angle]
-        (doseq [[t1 t2] (partition 2 1 outers)]
-          (q/line (rectangular major-radius t1) (rectangular major-radius t2)))
-        (let [inner-p (rectangular minor-radius inner)]
-          (q/line inner-p (rectangular major-radius (first outers)))
-          (q/line inner-p (rectangular major-radius (last outers))))))))
+    (doseq [p (asteroid-torus-positions asteroid)]
+      (q/with-translation p
+        (q/with-rotation [angle]
+          (doseq [[t1 t2] (partition 2 1 outers)]
+            (q/line (rectangular major-radius t1) (rectangular major-radius t2)))
+          (let [inner-p (rectangular minor-radius inner)]
+            (q/line inner-p (rectangular major-radius (first outers)))
+            (q/line inner-p (rectangular major-radius (last outers)))))))))
 
 (defn draw-state [{:keys [asteroids controls lasers ship] :as state}]
   (q/background 0)
