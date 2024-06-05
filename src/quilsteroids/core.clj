@@ -77,9 +77,13 @@
    })
 
 (defn shoot [{:keys [ship] :as state}]
-  (update state :lasers conj {:position (v+ (:position ship)
-                                            (rectangular ship-radius (:angle ship)))
-                              :velocity (rectangular laser-speed (:angle ship))}))
+  (if (< (count (:lasers state)) 4)
+    (let [fresh-laser {:position (v+ (:position ship)
+                                     (rectangular ship-radius (:angle ship)))
+                       :velocity (rectangular laser-speed (:angle ship))
+                       :countdown 30}]
+      (update state :lasers conj fresh-laser))
+    state))
 
 (defn setup []
   (q/frame-rate 30)
@@ -137,11 +141,21 @@
   (update ship :position #(on-game-torus (v+ % (:velocity ship)))))
 
 (defn move-laser [laser]
-  (update laser :position #(on-game-torus (v+ % (:velocity laser)))))
+  (-> laser
+      (update :position #(on-game-torus (v+ % (:velocity laser))))
+      (update :countdown dec)))
+
+(defn move-lasers [state]
+  (update state :lasers #(into []
+                               (comp
+                                (map move-laser)
+                                (filter (fn [laser] (< 0 (:countdown laser)))))
+                               %)))
+
 
 (defn move-objects [state]
   (-> state
-      (update :lasers #(map move-laser %))
+      move-lasers
       (update :ship move-ship)
       ))
 
