@@ -6,9 +6,10 @@
   (:import (clojure.lang PersistentQueue)))
 
 ;; TODOs (refactoring throughout, tests overdue)
-;; - asteroids
+;; - asteroids (as circles)
 ;; - collisions
 ;; - cap ship speed
+;; - cracks in asteroids--taking forever, probably not worth doing ever, maybe.
 
 (def play-area
   [640 480])
@@ -66,9 +67,24 @@
 
 (def queue PersistentQueue/EMPTY)
 
+(comment
+  ;; "crack" asteroids later. Don't worry about it.
+
+  (defn random-cracks
+    "Random \"cracks\" for asteroid. Parallel sequences of arcs and heights.
+  Dip at most one level down at most once per sequences."
+    []
+    (repeatedly 5 #(rand-nth [false true])))
+
+  (random-cracks))
+
+(defn smooth
+  "Smooth cracks by making sure you don't have two cracks in a row (wrapping around). Add non-cracks to smooth out."
+  [cracks])
+
 (def initial-state
   {:controls #{}
-   :events queue ;; (conj queue :shoot)
+   :events queue
 
    :ship
    {:angle 0
@@ -76,10 +92,14 @@
     :velocity [0 0]
     :ammo 4}
 
-   :lasers
-   [#_{:position (v+ (mapv #(/ % 2) play-area) [ship-radius 0])
-       :velocity (rectangular laser-speed 0)
-       }]
+   :lasers []
+
+   :asteroids [{:position (mapv #(/ % 4) play-area)
+                :velocity [1 -1]
+                :angle (/ Math/PI 3)
+                :angular-velocity (/ Math/PI 90)
+                :mass 3
+                }]
    })
 
 (defn shoot [{:keys [ship] :as state}]
@@ -263,10 +283,30 @@
     (q/with-translation p
       (q/line [0 0] (mapv - velocity)))))
 
-(defn draw-state [{:keys [controls lasers ship] :as state}]
+;; (range 0 (* 2 Math/PI) (/ (* 2 Math/PI) 9))
+;; => (0 0.6981317007977318 1.3962634015954636 2.0943951023931953 2.792526803190927 3.490658503988659 4.1887902047863905 4.886921905584122 5.585053606381854)
+
+(defn draw-asteroid [{:keys [position angle mass] :as asteroid}]
+  (q/stroke 180)
+  (let [segments 9
+        major-radius (* 10 mass)
+        minor-radius (* 10 (dec mass))
+        arc-angle (/ (* 2 Math/PI) segments)
+        angles (range 0 (* 2 Math/PI) arc-angle)
+        [inner & outers] angles]
+    (q/with-translation position
+      ;; (q/with-rotation [angle])
+      (doseq [[t1 t2] (partition 2 1 outers)]
+        (q/line (rectangular major-radius t1) (rectangular major-radius t2))))
+    (let [inner-p (rectangular minor-radius inner)]
+      (q/line inner-p (rectangular major-radius (first outers)))
+      (q/line inner-p (rectangular major-radius (last outers))))))
+
+(defn draw-state [{:keys [asteroids controls lasers ship] :as state}]
   (q/background 0)
   (draw-ship (assoc ship :thrusting? (:thrusters controls)))
-  (doseq [laser lasers] (draw-laser laser)))
+  (doseq [laser lasers] (draw-laser laser))
+  (doseq [asteroid asteroids] (draw-asteroid asteroid)))
 
 (def held-controls
   {:up :thrusters
