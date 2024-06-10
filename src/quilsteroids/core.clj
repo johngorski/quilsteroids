@@ -7,6 +7,7 @@
 
 ;; TODOs (refactoring throughout, tests overdue)
 ;; - collisions
+;; - CLEARLY CLEARLY CLEARLY where some refactoring is mandatory. Protocols/multimethods.
 ;; - cap ship speed
 ;; - cracks in asteroids--taking forever, probably not worth doing ever, maybe.
 
@@ -75,30 +76,67 @@
     []
     (repeatedly 5 #(rand-nth [false true])))
 
-  (random-cracks))
+  (random-cracks)
 
-(defn smooth
-  "Smooth cracks by making sure you don't have two cracks in a row (wrapping around). Add non-cracks to smooth out."
-  [cracks])
+  (defn smooth
+    "Smooth cracks by making sure you don't have two cracks in a row (wrapping around). Add non-cracks to smooth out."
+    [cracks]))
+
+(def initial-ship
+  {:angle 0
+   :position (mapv #(/ % 2) play-area)
+   :velocity [0 0]
+   :ammo 4})
+
+(defn spawn-ship [state]
+  (assoc state :ship initial-ship))
+
+(defn rand-angle []
+  (* (rand) 2 Math/PI))
+
+(comment
+  (rand-angle))
+
+(defn rand-bounded [least most]
+  (+ least (* (rand) (- most least))))
+
+(comment
+  (rand-bounded 1/2 2))
+
+(defn random-asteroid []
+  (let [height (second play-area)
+        min-speed 1/2
+        max-speed 2
+        full-rotation (* 2 Math/PI)
+        max-omega (/ full-rotation 40)
+        min-start (/ height 4)
+        max-start (/ height 2)]
+    {:position (rectangular (rand-bounded min-start max-start) (rand-angle))
+     :velocity (rectangular (rand-bounded min-speed max-speed) (rand-angle))
+     :angle (rand-angle)
+     :angular-velocity (rand-bounded (- max-omega) max-omega)
+     :mass 3}))
+
+(comment
+  (random-asteroid))
+
+(defn spawn-asteroid
+  ([state] (spawn-asteroid state {}))
+  ([state asteroid]
+   (update state :asteroids conj (merge (random-asteroid) asteroid))))
 
 (def initial-state
   {:controls #{}
-   :events queue
-
-   :ship
-   {:angle 0
-    :position (mapv #(/ % 2) play-area)
-    :velocity [0 0]
-    :ammo 4}
+   :events (conj queue
+                 :respawn
+                 :spawn-asteroid
+                 :spawn-asteroid
+                 :spawn-asteroid
+                 :spawn-asteroid)
 
    :lasers []
 
-   :asteroids [{:position (mapv #(/ % 4) play-area)
-                :velocity [1 -1]
-                :angle (/ Math/PI 3)
-                :angular-velocity (/ Math/PI 90)
-                :mass 3
-                }]
+   :asteroids []
    })
 
 (defn shoot [{:keys [ship] :as state}]
@@ -112,14 +150,18 @@
 
 (defn setup []
   (q/frame-rate 30)
-  ;; (shoot)
   initial-state)
 
 (defn detect-collisions
   "Enqueue events/transform state based on collisions in current state"
   [state]
-  identity ;; TODO
-  )
+  (let [ship-asteroid-collisions :TODO
+        laser-asteroid-collisions :TODO]
+    (-> state
+        ;; ship + asteroid: ship respawns
+        (update :events conj :respawn)
+        ;; laser + asteroid: laser dies, smaller asteroids spawn/smallest die
+        )))
 
 (comment
   (shoot initial-state)
@@ -136,7 +178,9 @@
   "functions from state to state"
   [game-event]
   (get
-   {:shoot shoot}
+   {:shoot shoot
+    :respawn spawn-ship
+    :spawn-asteroid spawn-asteroid}
    game-event
    identity))
 
