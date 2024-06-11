@@ -6,6 +6,7 @@
   (:import (clojure.lang PersistentQueue)))
 
 ;; TODOs (refactoring throughout, tests overdue)
+;; - address objects via GUID
 ;; - collisions
 ;; - CLEARLY CLEARLY CLEARLY where some refactoring is mandatory. Protocols/multimethods.
 ;; - cap ship speed
@@ -120,10 +121,22 @@
 (comment
   (random-asteroid))
 
+(comment
+  (random-uuid)
+  (conj {} [(random-uuid) "4"])
+  ;; => {#uuid "1427bd44-78b3-4364-a013-e359dec235a8" "4"}
+  ())
+
+(defn add-object
+  "Add an obj of type type (:laser / :asteroid) to the game state."
+  [state type obj]
+  (update state ({:asteroid :asteroids, :laser :lasers} type) conj [(random-uuid) obj]))
+
 (defn spawn-asteroid
   ([state] (spawn-asteroid state {}))
   ([state asteroid]
-   (update state :asteroids conj (merge (random-asteroid) asteroid))))
+   ;; (update state :asteroids conj (merge (random-asteroid) asteroid))
+   (add-object state :asteroid (merge (random-asteroid) asteroid))))
 
 (def initial-state
   {:controls #{}
@@ -134,9 +147,9 @@
                  :spawn-asteroid
                  :spawn-asteroid)
 
-   :lasers []
+   :lasers {}
 
-   :asteroids []
+   :asteroids {}
    })
 
 (defn shoot [{:keys [ship] :as state}]
@@ -145,12 +158,23 @@
                                      (rectangular ship-radius (:angle ship)))
                        :velocity (rectangular laser-speed (:angle ship))
                        :countdown 30}]
-      (update state :lasers conj fresh-laser))
+      ;; (update state :lasers conj fresh-laser)
+      (add-object state :laser fresh-laser))
     state))
 
 (defn setup []
   (q/frame-rate 30)
   initial-state)
+
+(defn d2
+  "distance squared between p1 and p2"
+  [p1 p2]
+  :TODO
+  )
+
+(defn collisions-ship-asteroid [ship asteroid])
+
+(defn collisions-asteroid-laser [asteroid laser])
 
 (defn detect-collisions
   "Enqueue events/transform state based on collisions in current state"
@@ -177,12 +201,20 @@
 (defn effects
   "functions from state to state"
   [game-event]
-  (get
-   {:shoot shoot
-    :respawn spawn-ship
-    :spawn-asteroid spawn-asteroid}
-   game-event
-   identity))
+  (cond
+    (keyword? game-event)
+    (get
+     {:shoot shoot
+      :respawn spawn-ship
+      :spawn-asteroid spawn-asteroid}
+     game-event
+     identity)
+
+    ;; (seq? game-event)
+    ;; (let [[event-type & args] game-event])
+
+    :default
+    identity))
 
 (defn process-events
   "Process event queue to update the state"
@@ -214,11 +246,36 @@
       (update :position #(on-game-torus (v+ % (:velocity laser))))
       (update :countdown dec)))
 
+(defn map-values
+  "Applies f to every value in m, leaving keys unchanged. Returns a transducer when m is not provided."
+  ([f]
+   (map (fn [[k v]] [k (f v)])))
+  ([f m]
+   (into {} (map-values f) m)))
+
+(comment
+  (map-values inc {:a 1 :c 3})
+  ;; => {:a 2, :c 4}
+  ())
+
+(defn filter-values
+  "Filters m according to the trutiness of (f v) for the value v of each entry in m.
+  Returns a transducer when m is not provided."
+  ([f]
+   (filter (fn [[k v]] (f v))))
+  ([f m]
+   (into {} (filter-values f) m)))
+
+(comment
+  (filter-values odd? {:a 1 :b 2 :c 3})
+  ;; => {:a 1, :c 3}
+  ())
+
 (defn move-lasers [state]
-  (update state :lasers #(into []
+  (update state :lasers #(into {}
                                (comp
-                                (map move-laser)
-                                (filter (fn [laser] (< 0 (:countdown laser)))))
+                                (map-values move-laser)
+                                (filter-values (fn [laser] (< 0 (:countdown laser)))))
                                %)))
 
 (defn move-asteroid [{:keys [velocity angular-velocity] :as asteroid}]
@@ -227,7 +284,7 @@
       (update :angle #(+ % angular-velocity))))
 
 (defn move-asteroids [state]
-  (update state :asteroids #(map move-asteroid %)))
+  (update state :asteroids #(map-values move-asteroid %)))
 
 (defn move-objects [state]
   (-> state
@@ -377,11 +434,16 @@
             (q/line inner-p (rectangular major-radius (first outers)))
             (q/line inner-p (rectangular major-radius (last outers)))))))))
 
+(comment
+  (vals {:a 1})
+  ;; => (1)
+  ())
+
 (defn draw-state [{:keys [asteroids controls lasers ship] :as state}]
   (q/background 0)
   (draw-ship (assoc ship :thrusting? (:thrusters controls)))
-  (doseq [laser lasers] (draw-laser laser))
-  (doseq [asteroid asteroids] (draw-asteroid asteroid)))
+  (doseq [laser (vals lasers)] (draw-laser laser))
+  (doseq [asteroid (vals asteroids)] (draw-asteroid asteroid)))
 
 (def held-controls
   {:up :thrusters
