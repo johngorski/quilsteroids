@@ -6,7 +6,6 @@
   (:import (clojure.lang PersistentQueue)))
 
 ;; TODOs (refactoring throughout, tests overdue)
-;; - address objects via GUID
 ;; - collisions
 ;; - CLEARLY CLEARLY CLEARLY where some refactoring is mandatory. Protocols/multimethods.
 ;; - cap ship speed
@@ -104,22 +103,34 @@
 (comment
   (rand-bounded 1/2 2))
 
-(defn random-asteroid []
-  (let [height (second play-area)
-        min-speed 1/2
-        max-speed 2
-        full-rotation (* 2 Math/PI)
-        max-omega (/ full-rotation 40)
-        min-start (/ height 4)
-        max-start (/ height 2)]
-    {:position (rectangular (rand-bounded min-start max-start) (rand-angle))
-     :velocity (rectangular (rand-bounded min-speed max-speed) (rand-angle))
-     :angle (rand-angle)
-     :angular-velocity (rand-bounded (- max-omega) max-omega)
-     :mass 3}))
+(def min-asteroid-speed 1/2)
+(def max-asteroid-speed 2)
+
+(defn rand-asteroid-velocity
+  ""
+  []
+  (rectangular (rand-bounded min-asteroid-speed max-asteroid-speed) (rand-angle)))
+
+(defn random-asteroid
+  "Random asteroid, optionally with presets."
+  ([presets] (merge (random-asteroid) presets))
+  ([]
+   (let [height (second play-area)
+         min-speed 1/2
+         max-speed 2
+         full-rotation (* 2 Math/PI)
+         max-omega (/ full-rotation 40)
+         min-start (/ height 4)
+         max-start (/ height 2)]
+     {:position (rectangular (rand-bounded min-start max-start) (rand-angle))
+      :velocity (rand-asteroid-velocity)
+      :angle (rand-angle)
+      :angular-velocity (rand-bounded (- max-omega) max-omega)
+      :mass 3})))
 
 (comment
-  (random-asteroid))
+  (random-asteroid)
+  (random-asteroid {:position [13 37] :mass 1}))
 
 (comment
   (random-uuid)
@@ -127,15 +138,21 @@
   ;; => {#uuid "1427bd44-78b3-4364-a013-e359dec235a8" "4"}
   ())
 
+(def object-type-keys {:asteroid :asteroids, :laser :lasers})
+
 (defn add-object
   "Add an obj of type type (:laser / :asteroid) to the game state."
   [state type obj]
-  (update state ({:asteroid :asteroids, :laser :lasers} type) conj [(random-uuid) obj]))
+  (update state (object-type-keys type) assoc (random-uuid) obj))
+
+(defn remove-object
+  "Removes the object with the given id of type type from the game state."
+  [state type id]
+  (update state (object-type-keys type) dissoc id))
 
 (defn spawn-asteroid
   ([state] (spawn-asteroid state {}))
   ([state asteroid]
-   ;; (update state :asteroids conj (merge (random-asteroid) asteroid))
    (add-object state :asteroid (merge (random-asteroid) asteroid))))
 
 (def initial-state
@@ -158,7 +175,6 @@
                                      (rectangular ship-radius (:angle ship)))
                        :velocity (rectangular laser-speed (:angle ship))
                        :countdown 30}]
-      ;; (update state :lasers conj fresh-laser)
       (add-object state :laser fresh-laser))
     state))
 
@@ -166,26 +182,20 @@
   (q/frame-rate 30)
   initial-state)
 
-(defn d2
+(defn norm-squared [v]
+  (reduce + (map * v v)))
+
+(comment
+  (norm-squared [3 4])
+  ;; => 25
+  (norm-squared [5 12])
+  ;; => 169
+  ())
+
+(defn distance-squared
   "distance squared between p1 and p2"
   [p1 p2]
-  :TODO
-  )
-
-(defn collisions-ship-asteroid [ship asteroid])
-
-(defn collisions-asteroid-laser [asteroid laser])
-
-(defn detect-collisions
-  "Enqueue events/transform state based on collisions in current state"
-  [state]
-  (let [ship-asteroid-collisions :TODO
-        laser-asteroid-collisions :TODO]
-    (-> state
-        ;; ship + asteroid: ship respawns
-        (update :events conj :respawn)
-        ;; laser + asteroid: laser dies, smaller asteroids spawn/smallest die
-        )))
+  (norm-squared (map - p1 p2)))
 
 (comment
   (shoot initial-state)
@@ -197,6 +207,37 @@
           :ammo 4}
    :lasers [{:position [330.0 240.0]
              :velocity [10.0 0.0]}]})
+
+(comment
+  (dec (Math/floor 3)))
+
+(defn smaller-asteroids
+  "Smaller chunks of asteroid"
+  [{:keys [position mass] :as asteroid}]
+  (def *dbg* asteroid)
+  (let [num-chunks (dec mass)
+        chunk-mass (dec (Math/floor mass))]
+    (repeatedly num-chunks #(random-asteroid {:position position :mass chunk-mass}))))
+
+(identity *dbg*)
+
+(defn split-asteroid
+  "Replace the given asteroid with new asteroids of smaller mass."
+  [state asteroid-id]
+  (if-let [asteroid (get-in state [:asteroids asteroid-id])]
+    (let [without-asteroid (remove-object state :asteroid asteroid-id)]
+      (def *dbg-split-asteroid-asteroid* asteroid)
+      (reduce (fn [state chunk] (add-object state :asteroid chunk))
+              without-asteroid
+              (smaller-asteroids asteroid)))
+    state))
+
+(identity *dbg-split-asteroid-asteroid*)
+
+(defn exhaust-laser
+  ""
+  [state laser-id]
+  (remove-object state :laser laser-id))
 
 (defn effects
   "functions from state to state"
@@ -210,11 +251,37 @@
      game-event
      identity)
 
-    ;; (seq? game-event)
-    ;; (let [[event-type & args] game-event])
+    (seqable? game-event)
+    (let [[event-type & args] game-event]
+      (case event-type
+        :split-asteroid
+        (let [[asteroid-id] args]
+          (fn [state]
+            (split-asteroid state asteroid-id)))
+        :exhaust-laser
+        (let [[laser-id] args]
+          (fn [state]
+            (exhaust-laser state laser-id)))))
 
     :default
     identity))
+
+(comment
+  ((effects [:exhaust-laser 10]) {:lasers {9 :keep 10 :exhaust}})
+  ;; => {:lasers {9 :keep}}
+
+  (smaller-asteroids {:mass 2 :position [1 1]})
+  ({:position [1 1], :velocity [0.5268620222425932 -0.20654789445532626], :angle 5.9081250858976695, :angular-velocity -0.014919987462264223, :mass 1.0})
+
+  (let [state {:asteroids {3 {:mass 2 :position [1 1]}}}
+        asteroid-id 3]
+    (get-in state [:asteroids asteroid-id]))
+
+  (split-asteroid {:asteroids {3 {:mass 2 :position [1 1]}}} 3)
+
+  ((effects [:split-asteroid 3]) {:asteroids {3 {:mass 2 :position [1 1]}}})
+  ;; => {:asteroids {#uuid "7d4affb9-a46c-49d7-90b3-c690d992ea7b" {:position [1 1], :velocity [-1.0764981744914517 -0.07375172638984383], :angle 1.763878290005697, :angular-velocity 0.10635310552231891, :mass 1.0}}}
+  ())
 
 (defn process-events
   "Process event queue to update the state"
@@ -295,7 +362,7 @@
 
 (defn update-state [state]
   (-> state
-      ;; detect-collisions
+      detect-collisions
       process-events
       actuate-controls
       move-objects
@@ -394,9 +461,12 @@
 ;; (range 0 (* 2 Math/PI) (/ (* 2 Math/PI) 9))
 ;; => (0 0.6981317007977318 1.3962634015954636 2.0943951023931953 2.792526803190927 3.490658503988659 4.1887902047863905 4.886921905584122 5.585053606381854)
 
+(defn asteroid-radius [asteroid]
+  (* 10 (:mass asteroid)))
+
 (defn asteroid-torus-positions [asteroid]
   (let [[width height] play-area
-        major-radius (* 10 (:mass asteroid))]
+        major-radius (asteroid-radius asteroid)]
     (into #{}
           (filter (fn [[x y]]
                     (and
@@ -415,6 +485,61 @@
   ;; => #{[642 240] [2 240]}
   (asteroid-torus-positions {:position [632 240] :mass 3})
   ;; => #{[-8 240] [632 240]}
+  ())
+
+(defn asteroid-laser-collided? [asteroid laser]
+  (let [r (asteroid-radius asteroid)
+        boundary-squared (* r r)]
+    (first
+     (for [a-p (asteroid-torus-positions asteroid)
+           l-p (laser-torus-positions laser)
+           :when (< (distance-squared a-p l-p) boundary-squared)]
+       [a-p l-p]))))
+
+(defn collisions-asteroid-laser [asteroids lasers]
+  (reduce #(merge-with conj %1 %2)
+          {:asteroids #{}
+           :lasers #{}}
+          (for [[asteroid-id asteroid] asteroids
+                [laser-id laser] lasers
+                :when (asteroid-laser-collided? asteroid laser)]
+            {:asteroids asteroid-id
+             :lasers laser-id}
+            )))
+
+(defn laser-asteroid-collision-events [collided-asteroids-and-lasers]
+  (concat
+   (map (fn [asteroid-id] [:split-asteroid asteroid-id]) (:asteroids collided-asteroids-and-lasers))
+   (map (fn [laser-id] [:exhaust-laser laser-id]) (:lasers collided-asteroids-and-lasers))))
+
+(comment)
+(collisions-asteroid-laser {} {})
+;; => {:asteroids #{}, :lasers #{}}
+(collisions-asteroid-laser {1 {:mass 3 :position [0 0]}}
+                           {10 {:position [5 5]
+                                :velocity [0 10]}})
+;; => {:asteroids #{1}, :lasers #{10}}
+(collisions-asteroid-laser {1 {:mass 3 :position [100 0]}}
+                           {10 {:position [5 5]
+                                :velocity [0 10]}})
+;; => {:asteroids #{}, :lasers #{}}
+()
+
+
+(defn detect-collisions
+  "Enqueue events/transform state based on collisions in current state"
+  [state]
+  (let [laser-asteroid-collisions (collisions-asteroid-laser (:asteroids state) (:lasers state))]
+    (update state :events #(reduce conj % (laser-asteroid-collision-events laser-asteroid-collisions)))))
+
+(comment
+  (detect-collisions
+   {:asteroids {1 {:mass 3 :position [0 0]}}
+    :lasers {10 {:position [5 5]
+                 :velocity [0 10]}}})
+  {:asteroids {1 {:mass 3, :position [0 0]}}
+   :lasers {10 {:position [5 5], :velocity [0 10]}}
+   :events ([:exhaust-laser 10] [:split-asteroid 1])}
   ())
 
 (defn draw-asteroid [{:keys [position angle mass] :as asteroid}]
