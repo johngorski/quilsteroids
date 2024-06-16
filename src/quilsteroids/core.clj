@@ -215,9 +215,11 @@
   "Smaller chunks of asteroid"
   [{:keys [position mass] :as asteroid}]
   (def *dbg* asteroid)
-  (let [num-chunks (dec mass)
-        chunk-mass (dec (Math/floor mass))]
-    (repeatedly num-chunks #(random-asteroid {:position position :mass chunk-mass}))))
+  (if (<= mass 1)
+    []
+    (let [num-chunks 5
+          chunk-mass (dec (Math/floor mass))]
+      (repeatedly num-chunks #(random-asteroid {:position position :mass chunk-mass})))))
 
 (identity *dbg*)
 
@@ -359,6 +361,7 @@
       move-lasers
       (update :ship move-ship)
       ))
+
 
 (defn update-state [state]
   (-> state
@@ -512,25 +515,26 @@
    (map (fn [asteroid-id] [:split-asteroid asteroid-id]) (:asteroids collided-asteroids-and-lasers))
    (map (fn [laser-id] [:exhaust-laser laser-id]) (:lasers collided-asteroids-and-lasers))))
 
-(comment)
-(collisions-asteroid-laser {} {})
-;; => {:asteroids #{}, :lasers #{}}
-(collisions-asteroid-laser {1 {:mass 3 :position [0 0]}}
-                           {10 {:position [5 5]
-                                :velocity [0 10]}})
-;; => {:asteroids #{1}, :lasers #{10}}
-(collisions-asteroid-laser {1 {:mass 3 :position [100 0]}}
-                           {10 {:position [5 5]
-                                :velocity [0 10]}})
-;; => {:asteroids #{}, :lasers #{}}
-()
-
-
 (defn detect-collisions
   "Enqueue events/transform state based on collisions in current state"
   [state]
   (let [laser-asteroid-collisions (collisions-asteroid-laser (:asteroids state) (:lasers state))]
     (update state :events #(reduce conj % (laser-asteroid-collision-events laser-asteroid-collisions)))))
+
+(comment
+  (collisions-asteroid-laser {} {})
+  ;; => {:asteroids #{}, :lasers #{}}
+  (collisions-asteroid-laser {1 {:mass 3 :position [0 0]}}
+                             {10 {:position [5 5]
+                                  :velocity [0 10]}})
+  ;; => {:asteroids #{1}, :lasers #{10}}
+  (collisions-asteroid-laser {1 {:mass 3 :position [100 0]}}
+                             {10 {:position [5 5]
+                                  :velocity [0 10]}})
+  ;; => {:asteroids #{}, :lasers #{}}
+  ())
+
+
 
 (comment
   (detect-collisions
