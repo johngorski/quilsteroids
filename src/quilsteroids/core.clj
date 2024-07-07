@@ -221,7 +221,7 @@
           chunk-mass (dec (Math/floor mass))]
       (repeatedly num-chunks #(random-asteroid {:position position :mass chunk-mass})))))
 
-(identity *dbg*)
+#_(identity *dbg*)
 
 (defn split-asteroid
   "Replace the given asteroid with new asteroids of smaller mass."
@@ -362,15 +362,6 @@
       (update :ship move-ship)
       ))
 
-
-(defn update-state [state]
-  (-> state
-      detect-collisions
-      process-events
-      actuate-controls
-      move-objects
-      ))
-
 (def torus-translations
   (let [[width height] play-area]
     [[(- width) (- height)] [0 (- height)] [width (- height)]
@@ -391,11 +382,11 @@
   but then we can check all *torus* positions for collisions and draw at all torus positions as well.
 
   Some form of this will likely get generalized to all objects on torus geometry."
-  [p]
+  [ship]
   (let [[width height] play-area]
     (into #{}
           (comp
-           (map #(v+ p %))
+           (map #(v+ (:position ship) %))
            (filter (fn [[x y]]
                      (and
                       (<= (- ship-radius) x) (< x (+ width ship-radius))
@@ -403,20 +394,9 @@
           torus-translations
           )))
 
-(comment
-  (ship-torus-positions [9 9])
-  ;; => #{[9 9] [649 489] [9 489] [649 9]}
-  (ship-torus-positions [10 10])
-  ;; => #{[10 10]}
-  (ship-torus-positions [1 1])
-  ;; => #{[1 1] [641 1] [1 481] [641 481]}
-  (ship-torus-positions (mapv #(* 1/2 %) play-area))
-  ;; => #{[320N 240N]}
-  ())
-
-(defn draw-ship [{:keys [position angle thrusting?]}]
+(defn draw-ship [{:keys [angle] :as ship}]
   (q/stroke 200)
-  (doseq [p (ship-torus-positions position)]
+  (doseq [p (ship-torus-positions ship)]
     (q/with-translation p
       (let [R ship-radius
             r (* 7/10 R)
@@ -432,7 +412,7 @@
         (q/line nose left-tip)
         (q/line nose right-tip)
         (q/line left-base right-base)
-        (when thrusting?
+        (when (:thrusting? ship)
           (q/line left-base tail)
           (q/line right-base tail))))))
 
@@ -515,11 +495,44 @@
    (map (fn [asteroid-id] [:split-asteroid asteroid-id]) (:asteroids collided-asteroids-and-lasers))
    (map (fn [laser-id] [:exhaust-laser laser-id]) (:lasers collided-asteroids-and-lasers))))
 
+(defn ship-asteroid-collided? [ship asteroid]
+  (let [r (asteroid-radius asteroid)
+        boundary (+ r ship-radius)
+        boundary-squared (* boundary boundary)]
+    (first
+     (for [a-p (asteroid-torus-positions asteroid)
+           s-p (ship-torus-positions ship)
+           :when (< (distance-squared a-p s-p) boundary-squared)]
+       [s-p a-p]))))
+
+(defn collisions-ship-asteroid
+  "Set of asteroid IDs into which the ship has collided"
+  [ship asteroids]
+  (into #{}
+        (for [[asteroid-id asteroid] asteroids
+              :when (ship-asteroid-collided? ship asteroid)]
+          asteroid-id)))
+
+(defn ship-asteroid-collision-events [collided-asteroids]
+  (if (empty? collided-asteroids)
+    []
+    (concat [:respawn]
+            (map (fn [asteroid-id] [:split-asteroid asteroid-id]) collided-asteroids))))
+
+(comment
+  (ship-asteroid-collision-s)
+  ())
+
 (defn detect-collisions
   "Enqueue events/transform state based on collisions in current state"
   [state]
-  (let [laser-asteroid-collisions (collisions-asteroid-laser (:asteroids state) (:lasers state))]
-    (update state :events #(reduce conj % (laser-asteroid-collision-events laser-asteroid-collisions)))))
+  (let [asteroids (:asteroids state)
+        laser-asteroid-collisions (collisions-asteroid-laser asteroids (:lasers state))
+        ship-asteroid-collisions (collisions-ship-asteroid (:ship state) asteroids)
+        ]
+    (update state :events #(reduce conj % (concat
+                                           (laser-asteroid-collision-events laser-asteroid-collisions)
+                                           (ship-asteroid-collision-events ship-asteroid-collisions))))))
 
 (comment
   (collisions-asteroid-laser {} {})
@@ -533,8 +546,6 @@
                                   :velocity [0 10]}})
   ;; => {:asteroids #{}, :lasers #{}}
   ())
-
-
 
 (comment
   (detect-collisions
@@ -602,6 +613,14 @@
   (if-let [released-control (held-controls (:key event))]
     (update old-state :controls disj released-control)
     old-state))
+
+(defn update-state [state]
+  (-> state
+      detect-collisions
+      process-events
+      actuate-controls
+      move-objects
+      ))
 
 (comment
   (q/defsketch quilsteroids
