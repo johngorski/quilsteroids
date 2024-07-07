@@ -6,7 +6,6 @@
   (:import (clojure.lang PersistentQueue)))
 
 ;; TODOs (refactoring throughout, tests overdue)
-;; - collisions
 ;; - CLEARLY CLEARLY CLEARLY where some refactoring is mandatory. Protocols/multimethods.
 ;; - cap ship speed
 ;; - cracks in asteroids--taking forever, probably not worth doing ever, maybe.
@@ -28,17 +27,6 @@
       (- x (* width whole-widths)))
     ))
 
-;; TODO: into unit tests
-(comment
-  ((within 10) 6)
-  ;; => 6
-  ((within 10) 16)
-  ;; => 6.0
-  ((within 10) -6)
-  ;; => 4.0
-  ((within 10) -16))
-;; => 4.0
-
 (defn on-torus
   "Function which clips the point passed to its argument to the given width and height"
   [[width height]]
@@ -54,11 +42,6 @@
 
 (def v+ (partial mapv +))
 (def v- (partial mapv -))
-
-(comment
-  (v- [0 1] [1 2])
-  ;; => [-1 -1]
-  ())
 
 (def laser-speed 10)
 (def laser-length laser-speed)
@@ -103,6 +86,8 @@
 (comment
   (rand-bounded 1/2 2))
 
+;; TODO: Asteroid functions will likely be much more comfortable in their own namespace.
+
 (def min-asteroid-speed 1/2)
 (def max-asteroid-speed 2)
 
@@ -132,11 +117,6 @@
   (random-asteroid)
   (random-asteroid {:position [13 37] :mass 1}))
 
-(comment
-  (random-uuid)
-  (conj {} [(random-uuid) "4"])
-  ;; => {#uuid "1427bd44-78b3-4364-a013-e359dec235a8" "4"}
-  ())
 
 (def object-type-keys {:asteroid :asteroids, :laser :lasers})
 
@@ -184,13 +164,6 @@
 
 (defn norm-squared [v]
   (reduce + (map * v v)))
-
-(comment
-  (norm-squared [3 4])
-  ;; => 25
-  (norm-squared [5 12])
-  ;; => 169
-  ())
 
 (defn distance-squared
   "distance squared between p1 and p2"
@@ -429,11 +402,6 @@
                   (or (in-play-area? p)
                       (in-play-area? (v- p velocity)))))
         (torus-points position)))
-
-(comment
-  (laser-torus-positions {:position [1 2]
-                          :velocity [5 5]})
-  #{[1 2] [641 482]})
 
 (defn draw-laser [{:keys [position velocity] :as laser}]
   (q/stroke 255)
