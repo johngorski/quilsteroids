@@ -90,9 +90,91 @@
     (testing "tail crosses horizontal boundary"
       (is (= (laser-torus-positions {:position [1 2]
                                      :velocity [5 5]})
-             #{[1 2] [641 482]})))))
+             #{[1 2] [641 482]}))))
+  (testing "for asteroids"
+    (testing "corner"
+      (is (= (asteroid-torus-positions {:position [0 0] :mass 3})
+             #{[0 0] [640 0] [640 480] [0 480]})))
+    (testing "horizontal edge"
+      (is (= (asteroid-torus-positions {:position [320 0] :mass 3})
+             #{[320 0] [320 480]})))
+    (testing "near horizontal edge"
+      (is (= (asteroid-torus-positions {:position [320 2] :mass 3})
+             #{[320 482] [320 2]})))
+    (testing "near left edge"
+      (is (= (asteroid-torus-positions {:position [2 240] :mass 3})
+             #{[642 240] [2 240]})))
+    (testing "near right edge"
+      (is (= (asteroid-torus-positions {:position [632 240] :mass 3})
+             #{[-8 240] [632 240]})))))
 
-(deftest smash-ship-asteroid
-  (testing "non-collision evaluates"
-    (is (empty? (collisions-ship-asteroid ship asteroids)))))
+(deftest lasers
+  (testing "exhaust"
+    (is (= {:lasers {9 :keep}} ((effects [:exhaust-laser 10]) {:lasers {9 :keep 10 :exhaust}})))))
 
+(deftest utils
+  (testing "map-values example"
+    (is (= (map-values inc {:a 1 :c 3})
+           {:a 2, :c 4})))
+  (testing "filter-values example"
+    (is (= (filter-values odd? {:a 1 :b 2 :c 3})
+           {:a 1, :c 3}))))
+
+(deftest smash
+  (testing "ship-asteroid"
+    (testing "non-collision evaluates"
+      (is (empty? (collisions-ship-asteroid ship asteroids)))))
+  (testing "asteroid-laser"
+    (testing "empty case"
+      (is (= (collisions-asteroid-laser {} {})
+             {:asteroids #{}, :lasers #{}})))
+    (testing "collision"
+      (is (= (collisions-asteroid-laser {1 {:mass 3 :position [0 0]}}
+                                        {10 {:position [5 5]
+                                             :velocity [0 10]}})
+             {:asteroids #{1}, :lasers #{10}})))
+    (testing "non-collision"
+      (is (= (collisions-asteroid-laser {1 {:mass 3 :position [100 0]}}
+                                        {10 {:position [5 5]
+                                             :velocity [0 10]}})
+             {:asteroids #{}, :lasers #{}}))))
+  (testing "overall state collision detection"
+    (testing "laser hits asteroid"
+      (is (= (detect-collisions
+              {:asteroids {1 {:mass 3 :position [0 0]}}
+               :lasers {10 {:position [5 5]
+                            :velocity [0 10]}}
+               :ship {:position [200 200]}})
+             {:asteroids {1 {:mass 3, :position [0 0]}}
+              :lasers {10 {:position [5 5], :velocity [0 10]}}
+              :ship {:position [200 200]}
+              :events '([:exhaust-laser 10] [:split-asteroid 1])})))))
+
+(deftest events
+  (testing "shooting"
+    (testing "from initial state"
+      (is (= (vals (:lasers (shoot (spawn-ship initial-state))))
+             '({:position [330.0 240.0], :velocity [10.0 0.0], :countdown 30})
+             )))))
+
+(deftest asteroid-behavior
+  (testing "examples"
+    (testing "smaller asteroids"
+      (is (= (map #(select-keys % [:position :mass]) (smaller-asteroids {:mass 2 :position [1 1]}))
+             '({:position [1 1], :mass 1.0} {:position [1 1], :mass 1.0}
+               {:position [1 1], :mass 1.0} {:position [1 1], :mass 1.0}
+               {:position [1 1], :mass 1.0}))))
+    (testing "smaller than smallest"
+      (is (empty? (smaller-asteroids {:mass 1 :position [1 1]}))))
+    (testing "split asteroid by id"
+      (is (= (map #(select-keys % [:position :mass])
+                  (vals (:asteroids (split-asteroid {:asteroids {3 {:mass 2 :position [1 1]}}} 3))))
+             '({:position [1 1], :mass 1.0} {:position [1 1], :mass 1.0} {:position [1 1], :mass 1.0}
+               {:position [1 1], :mass 1.0} {:position [1 1], :mass 1.0}))))
+    (testing "enact effect of splitting asteroid by id"
+      (is (= (->> ((effects [:split-asteroid 3]) {:asteroids {3 {:mass 2 :position [1 1]}}})
+                  :asteroids
+                  vals
+                  (map #(select-keys % [:position :mass])))
+             '({:position [1 1], :mass 1.0} {:position [1 1], :mass 1.0} {:position [1 1], :mass 1.0}
+               {:position [1 1], :mass 1.0} {:position [1 1], :mass 1.0}))))))
