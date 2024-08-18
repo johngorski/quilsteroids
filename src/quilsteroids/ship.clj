@@ -20,33 +20,8 @@
      (<= (- x-min ship-radius) x) (< x (+ width ship-radius))
      (<= (- y-min ship-radius) y) (< y (+ height ship-radius)))))
 
-;; TODO: confirm not needed
-#_(defn ship-torus-positions
-  "Cycle supply vastly outstrips cycle demand. Let's see how this goes if we render the full
-  cross of everything.
-
-  But...naive collision detection is O(n^2), so it's worth keeping n low (i.e. not 9x) since a
-  9x change in position/update/drawing becomes 81x in collision detection.
-
-  Torus positions are important here so that we can track one position for moving the ship around,
-  but then we can check all *torus* positions for collisions and draw at all torus positions as well.
-
-  Some form of this will likely get generalized to all objects on torus geometry."
-  [ship]
-  (let [[width height] play-area]
-    (into #{}
-          (comp
-           (map #(v+ (:position ship) %))
-           (filter (fn [[x y]]
-                     (and
-                      (<= (- ship-radius) x) (< x (+ width ship-radius))
-                      (<= (- ship-radius) y) (< y (+ height ship-radius))))))
-          torus-translations
-          )))
-
 (defn draw-ship [{:keys [angle] :as ship} p]
   (q/stroke 200)
-  ;; (doseq [p (ship-torus-positions ship)])
   (q/with-translation p
     (let [R ship-radius
           r (* 7/10 R)
@@ -96,4 +71,10 @@
                                     (geometry/rectangular ship-radius (:angle ship)))
                       :angle (:angle ship)}))
 
+;; TODO: Replace game/shoot with this function
+(defn shoot [ship]
+  (fn [state]
+    (if (< (count (:lasers state)) 4)
+      (object/add-object state :laser (fresh-laser ship))
+      state)))
 

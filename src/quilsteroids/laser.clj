@@ -9,19 +9,8 @@
 (def laser-speed 10)
 
 (defn exhaust-laser
-  ""
   [state laser-id]
   (object/remove-object state :laser laser-id))
-
-;; TODO: remove
-#_(defn laser-torus-positions
-  "Positions at which to draw lasers and detect collisions"
-  [{:keys [position velocity] :as laser}]
-  (into #{}
-        (filter (fn [p]
-                  (or (in-play-area? p)
-                      (in-play-area? (v- p velocity)))))
-        (torus-points position)))
 
 (defn visible? [laser {:keys [when-at within]}]
   (let [p when-at
@@ -32,12 +21,6 @@
                                     point))]
     (or (inside? p)
         (inside? (v- p (:velocity laser))))))
-
-
-#_(defn move-laser [laser]
-  (-> laser
-      (update :position #(on-game-torus (v+ % (:velocity laser))))
-      (update :countdown dec)))
 
 (defn move-laser [laser geo]
   (-> laser
@@ -53,7 +36,6 @@
 
 (defn draw-laser [{:keys [velocity] :as laser} position]
   (q/stroke 255)
-  ;; (doseq [p (laser-torus-positions laser)]
   (let [p position]
     (q/with-translation p
       (q/line [0 0] (mapv - velocity)))))

@@ -7,9 +7,9 @@
   (move [this geometry]
     "The updated Thing after an undisturbed timestep with respect to the given geometry")
   (position [this] "Where the Thing currently is")
-  ;; (angle [this] "Rotation of this thing")
   (visible? [this {:keys [when-at within]}]
     "Whether this Thing is visble when-at the provided location within the width and height provided.")
+  ;; TODO: factor out position and define draw functions in terms of origin instead.
   (draw [this position]
     "Draw the Thing at the given position"))
 

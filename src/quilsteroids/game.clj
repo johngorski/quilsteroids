@@ -22,8 +22,7 @@
   (let [[play-width play-height] play-area]
     (geometry/within? [[0 play-width]
                        [0 play-height]]
-                      point)
-    ))
+                      point)))
 
 (def initial-state
   {:controls #{}
@@ -46,7 +45,9 @@
     state))
 
 (defn effects
-  "functions from state to state"
+  "An effect is a function from state to state. game-events may yield several effects.
+  TODO: Model all effects this way. Eliminate ersatz functions which take a state and something else.
+  TODO: Replace with multimethod."
   [game-event]
   (cond
     (keyword? game-event)
@@ -108,15 +109,9 @@
        play-area))
 
 (defn visible-positions [o]
-  (def *dbg* {:o o, :geo game-torus, :viewport play-viewport})
   (object/visible-positions o
                             {:geo game-torus
                              :viewport play-viewport}))
-
-(comment
-  (identity *dbg*)
-  
-  ())
 
 (defn asteroid-laser-collided? [asteroid laser]
   (let [r (asteroid/asteroid-radius asteroid)

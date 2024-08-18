@@ -5,8 +5,7 @@
   [width]
   (fn [x]
     (let [whole-widths (Math/floor (/ x width))]
-      (- x (* width whole-widths)))
-    ))
+      (- x (* width whole-widths)))))
 
 (defn within? [[b & bounds] [c & coordinates]]
   (if (nil? b)
@@ -14,13 +13,6 @@
       (and (let [[lo hi] b]
              (<= lo c hi))
            (recur bounds coordinates))))
-
-(comment
-  (within? [[0 640] [0 480]] [320 240])
-  ;; => true
-  (within? [[0 640] [0 480]] [820 240])
-  ;; => false
-  ())
 
 (defn on-torus
   "Function which clips the point passed to its argument to the given width and height"
@@ -39,14 +31,8 @@
 (defn rand-angle []
   (* (rand) 2 Math/PI))
 
-(comment
-  (rand-angle))
-
 (defn rand-bounded [least most]
   (+ least (* (rand) (- most least))))
-
-(comment
-  (rand-bounded 1/2 2))
 
 (defn norm-squared [v]
   (reduce + (map * v v)))

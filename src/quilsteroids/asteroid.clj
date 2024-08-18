@@ -9,7 +9,6 @@
 (def max-asteroid-speed 2)
 
 (defn rand-asteroid-velocity
-  ""
   []
   (geometry/rectangular (geometry/rand-bounded min-asteroid-speed max-asteroid-speed)
                         (geometry/rand-angle)))
@@ -33,17 +32,6 @@
      (<= (- x-min major-radius) x) (< x (+ width major-radius))
      (<= (- y-min major-radius) y) (< y (+ height major-radius)))))
 
-;; TODO: Will be refactored to separate geometry and visibility functions
-#_(defn asteroid-torus-positions [asteroid]
-  (let [[width height] play-area
-        major-radius (asteroid-radius asteroid)]
-    (into #{}
-          (filter (fn [[x y]]
-                    (and
-                     (<= (- major-radius) x) (< x (+ width major-radius))
-                     (<= (- major-radius) y) (< y (+ height major-radius)))))
-          (torus-points (:position asteroid)))))
-
 (defn draw-asteroid [{:keys [position angle mass] :as asteroid} p]
   (q/stroke 180)
   (let [segments 9
@@ -52,7 +40,6 @@
         arc-angle (/ (* 2 Math/PI) segments)
         angles (range 0 (* 2 Math/PI) arc-angle)
         [inner & outers] angles]
-    ;; (doseq [p (asteroid-torus-positions asteroid)]) ;; now being passed directly
     (q/with-translation p
       (q/with-rotation [angle]
         (doseq [[t1 t2] (partition 2 1 outers)]
@@ -73,7 +60,6 @@
     (move-asteroid this geo))
 
   (visible? [this under-circumstances]
-    (def *dbg* {:this this :under-circumstances under-circumstances})
     (visible? this under-circumstances)))
 
 (defn random-asteroid
@@ -91,9 +77,11 @@
                      :mass 3}))))
 
 (comment
+  ;; TODO: Spec asteroid and confirm with generative tests
   (random-asteroid)
   (random-asteroid {:position [13 37] :mass 1}))
 
+;; TODO: Refactor to return effects (functions from state -> state)
 (defn spawn-asteroid
   ([state] (spawn-asteroid state {}))
   ([state asteroid]
@@ -112,6 +100,8 @@
           chunk-mass (dec (Math/floor mass))]
       (repeatedly num-chunks #(random-asteroid {:position position :mass chunk-mass})))))
 
+;; TODO: Refactor to return effect (function from state -> state)
+;; TODO: Replace get-in usages for objects in state methods from state.
 (defn split-asteroid
   "Replace the given asteroid with new asteroids of smaller mass."
   [state asteroid-id]
