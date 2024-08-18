@@ -19,6 +19,8 @@
      (<= 0 x play-width)
      (<= 0 y play-height))))
 
+;; TODO: namespace: geometry
+
 (defn within
   "Function which clips the value passed to at least zero and at most the given width"
   [width]
@@ -43,27 +45,9 @@
 (def v+ (partial mapv +))
 (def v- (partial mapv -))
 
-(def laser-speed 10)
-(def laser-length laser-speed)
-
 (def ship-radius 10)
 
 (def queue PersistentQueue/EMPTY)
-
-(comment
-  ;; "crack" asteroids later. Don't worry about it.
-
-  (defn random-cracks
-    "Random \"cracks\" for asteroid. Parallel sequences of arcs and heights.
-  Dip at most one level down at most once per sequences."
-    []
-    (repeatedly 5 #(rand-nth [false true])))
-
-  (random-cracks)
-
-  (defn smooth
-    "Smooth cracks by making sure you don't have two cracks in a row (wrapping around). Add non-cracks to smooth out."
-    [cracks]))
 
 (def initial-ship
   {:angle 0
@@ -86,7 +70,7 @@
 (comment
   (rand-bounded 1/2 2))
 
-;; TODO: Asteroid functions will likely be much more comfortable in their own namespace.
+;; TODO: namespace: asteroids
 
 (def min-asteroid-speed 1/2)
 (def max-asteroid-speed 2)
@@ -147,6 +131,8 @@
 
    :asteroids {}
    })
+
+(def laser-speed 10)
 
 (defn shoot [{:keys [ship] :as state}]
   (if (< (count (:lasers state)) 4)
@@ -341,11 +327,6 @@
           (q/line left-base tail)
           (q/line right-base tail))))))
 
-(defn laser-ends [laser]
-  (let [{:keys [position velocity]} laser]
-    {:tip position
-     :tail (v- position velocity)}))
-
 (defn laser-torus-positions
   "Positions at which to draw lasers and detect collisions"
   [{:keys [position velocity] :as laser}]
@@ -505,7 +486,7 @@
     ;; fun-mode.
     :middleware [m/fun-mode]
     :features [:keep-on-top]
-    :title "Quilsteroids!"
+    :title "Quilsteroids! - core namespace"
     :size play-area
     ;; setup function called only once, during sketch initialization.
     :setup setup
