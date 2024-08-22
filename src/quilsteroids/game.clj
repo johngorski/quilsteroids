@@ -113,15 +113,33 @@
                             {:geo game-torus
                              :viewport play-viewport}))
 
+(defn by-class [this that]
+  {(class this) this
+   (class that) that})
+
+#_(by-class (laser/map->Laser {}) (asteroid/map->Asteroid {}))
+
+(defmulti collided? (fn [this that]
+                      #{(class this) (class that)}))
+
 (defn asteroid-laser-collided? [asteroid laser]
   (let [r (asteroid/asteroid-radius asteroid)
         boundary-squared (* r r)
-        viewport-bounds (map (fn [end] [0 end]) play-area)]
+        viewport-bounds play-viewport]
     (first
      (for [a-p (visible-positions asteroid)
            l-p (visible-positions laser)
            :when (< (geometry/distance-squared a-p l-p) boundary-squared)]
        [a-p l-p]))))
+
+(defmethod collided? #{quilsteroids.asteroid.Asteroid
+                       quilsteroids.laser.Laser}
+  [this that]
+  (let [[asteroid laser]
+        (map (by-class this that)
+             [quilsteroids.asteroid.Asteroid
+              quilsteroids.laser.Laser])]
+    (asteroid-laser-collided? asteroid laser)))
 
 (defn collisions-asteroid-laser [asteroids lasers]
   (reduce #(merge-with conj %1 %2)
@@ -129,10 +147,9 @@
            :lasers #{}}
           (for [[asteroid-id asteroid] asteroids
                 [laser-id laser] lasers
-                :when (asteroid-laser-collided? asteroid laser)]
+                :when (collided? asteroid laser)]
             {:asteroids asteroid-id
-             :lasers laser-id}
-            )))
+             :lasers laser-id})))
 
 (defn laser-asteroid-collision-events [collided-asteroids-and-lasers]
   (concat
@@ -153,12 +170,21 @@
            :when (< (geometry/distance-squared a-p s-p) boundary-squared)]
        [s-p a-p]))))
 
+(defmethod collided? #{quilsteroids.asteroid.Asteroid
+                       quilsteroids.ship.Ship}
+  [this that]
+  (let [[ship asteroid]
+        (map (by-class this that)
+             [quilsteroids.ship.Ship
+              quilsteroids.asteroid.Asteroid])]
+    (ship-asteroid-collided? ship asteroid)))
+
 (defn collisions-ship-asteroid
   "Set of asteroid IDs into which the ship has collided"
   [ship asteroids]
   (into #{}
         (for [[asteroid-id asteroid] asteroids
-              :when (ship-asteroid-collided? ship asteroid)]
+              :when (collided? ship asteroid)]
           asteroid-id)))
 
 (defn ship-asteroid-collision-events [collided-asteroids]

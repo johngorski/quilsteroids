@@ -73,18 +73,25 @@
     (is (= {:lasers {9 :keep}}
            ((effects [:exhaust-laser 10]) {:lasers {9 :keep 10 :exhaust}})))))
 
+(def target-asteroid #quilsteroids.asteroid.Asteroid{:mass 3 :position [0 0]})
+(def successful-shot #quilsteroids.laser.Laser{:position [5 5] :velocity [0 10]})
+
 (deftest smash
   (testing "ship-asteroid"
     (testing "non-collision evaluates"
       (is (empty? (collisions-ship-asteroid ship asteroids)))))
+  (testing "ship hit"
+    (is (collided? ship (assoc target-asteroid :position (:position ship)))))
   (testing "asteroid-laser"
     (testing "empty case"
       (is (= (collisions-asteroid-laser {} {})
              {:asteroids #{}, :lasers #{}})))
     (testing "collision"
-      (is (= (collisions-asteroid-laser {1 #quilsteroids.asteroid.Asteroid{:mass 3 :position [0 0]}}
-                                        {10 #quilsteroids.laser.Laser{:position [5 5]
-                                             :velocity [0 10]}})
+      (is (asteroid-laser-collided? target-asteroid successful-shot))
+      (is (collided? target-asteroid successful-shot))
+      (is (collided? successful-shot target-asteroid))
+      (is (= (collisions-asteroid-laser {1 target-asteroid}
+                                        {10 successful-shot})
              {:asteroids #{1}, :lasers #{10}})))
     (testing "non-collision"
       (is (= (collisions-asteroid-laser {1 (asteroid/map->Asteroid {:mass 3 :position [100 0]})}
