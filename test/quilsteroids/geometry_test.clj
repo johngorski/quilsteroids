@@ -13,8 +13,8 @@
 (deftest generative
   (testing "randomly sampled"
     (testing "angle"
-      (<= 0 (rand-angle) (* 2 Math/PI)))
+      (is (<= 0 (rand-angle) (* 2 Math/PI))))
     (testing "boundary"
-      (<= 1/2 (rand-bounded 1/2 2) 2))))
+      (is (<= 1/2 (rand-bounded 1/2 2) 2)))))
 
 
