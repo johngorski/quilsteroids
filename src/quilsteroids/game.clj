@@ -1,4 +1,5 @@
 (ns quilsteroids.game
+  (:gen-class)
   (:require
    [quil.core :as q]
    [quil.middleware :as m]
