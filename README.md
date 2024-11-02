@@ -20,6 +20,7 @@ Expectations: Definitely not a full clone! In particular,
 - No asteroid field refresh when the field is cleared
 - No teleportation
 - Asteroid art doesn't match
+- Compiled jar is ~20MB--would never have flown in 1979!
 
 The list is not meant to be exhaustive.
 
